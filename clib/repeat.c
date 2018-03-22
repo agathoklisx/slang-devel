@@ -56,6 +56,6 @@ static void repeat_intrin (char *str, int *count)
   (void) SLang_push_malloced_string (res);
 }
 
-/* signature
+/*
   MAKE_INTRINSIC_SI("repeat", repeat_intrin, SLANG_VOID_TYPE),
  */

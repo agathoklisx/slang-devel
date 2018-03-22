@@ -33,6 +33,6 @@ static void realpath_intrin (char *path)
    (void) SLang_push_null ();
 }
 
-/* signature
+/* 
   MAKE_INTRINSIC_S("realpath", realpath_intrin, SLANG_VOID_TYPE),
- * /
+ */

@@ -9,8 +9,12 @@
  *
  * Originally written by Agathoklis D.E. Chatzimanikas
  * Last checked against hunspell ~revision a7be9d3
- * 
- * compiled with gcc (with debug flags):
+ *
+ * compiled with gcc:
+ gcc hunspell-module.c -I/usr/local/include -g -O2 -Wl,-R/usr/local/lib \
+   --shared -fPIC -lhunspell-1.6 -o hunspell-module.so
+
+ * and with the following debug flags:
  gcc hunspell-module.c -I/usr/local/include -g -O2    \
    -Wl,-R/usr/local/lib --shared -fPIC -lhunspell-1.6 \
    -Wall -Wformat=2 -W -Wunused -Wundef -pedantic     \
