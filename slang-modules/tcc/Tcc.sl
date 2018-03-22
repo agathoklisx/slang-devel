@@ -195,7 +195,7 @@ private define compile_string (s, cbuf)
   s.iscompiled = (0 == isexe);
 
   if (qualifier_exists ("verbose") && isexe)
-    IO.tostderr ("created executable:", output_file);
+    () = fprintf (stdout, "created executable: %s", output_file);
 
   0;
 }
