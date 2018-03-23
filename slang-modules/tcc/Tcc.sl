@@ -12,7 +12,7 @@ import ("tcc");
 
 public define tcc_error_handler (msg)
 {
-  () = fprintf (stderr, "caught tcc error", msg);
+  () = fprintf (stderr, "caught tcc error: %s\n", msg);
 }
 
 static variable SLapi_Types = Assoc_Type[Integer_Type, -1];
@@ -195,7 +195,7 @@ private define compile_string (s, cbuf)
   s.iscompiled = (0 == isexe);
 
   if (qualifier_exists ("verbose") && isexe)
-    () = fprintf (stdout, "created executable: %s", output_file);
+    () = fprintf (stdout, "created executable: %s\n", output_file);
 
   0;
 }
