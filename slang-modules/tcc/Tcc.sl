@@ -1,8 +1,9 @@
 % this is intended as a reference
-% as it was pulled out of a complicated code,
-% that cannot be in sync (some things might work not as intented)
 
-import ("tcc");
+% as it was pulled out of a complicated code, that cannot be in
+% sync (some things might not work as intented)
+
+import ("./tcc");
 
 % assumes tcc default path 
 % /usr/local/lib/tcc
