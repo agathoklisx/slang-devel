@@ -11,14 +11,16 @@ import ("./tcc");
 % and now i see that needs realpath (fixed)
 % commited a realpath implementation in clib
 
+variable __realpath = __get_reference ("realpath");
+
 public define tcc_error_handler (msg)
 {
   () = fprintf (stderr, "caught tcc error: %s\n", msg);
 }
 
 static variable SLapi_Types = Assoc_Type[Integer_Type, -1];
-
-SLapi_Types["Undefined_Type"] =  __class_id (Void_Type);
+                                      % this match Void_Type which is equal to 0
+SLapi_Types["Undefined_Type"] =  0x1; % where SLANG_VOID_TYPE is equal to 1
 SLapi_Types["String_Type"]    =  __class_id (String_Type);
 SLapi_Types["Integer_Type"]   =  __class_id (Integer_Type);
 SLapi_Types["Array_Type"]     =  __class_id (Array_Type);
@@ -119,14 +121,14 @@ private define set_output_file (s, file)
   ifnot (path_is_absolute (file))
     {
     p = qualifier ("output_dir", getcwd);
-    if (NULL == (p = realpath (p), p))
+    if (NULL == (p = (@__realpath) (p), p))
       return -1;
 
     file = path_concat (p, file);
     }
   else
-    if (NULL == (p = realpath (file), p))
-      if (NULL == (p = realpath (path_dirname (file)), p))
+    if (NULL == (p = (@__realpath) (file), p))
+      if (NULL == (p = (@__realpath) (path_dirname (file)), p))
         return -1;
       else
         file = path_concat (p, path_basename (file));
@@ -324,7 +326,8 @@ private define sladd_intrinsic_variable (s, vname, sym, rettype, cbuf)
 private define sladd_intrinsic_function (s, funm, nargs, sym, rettype, argtypes, cbuf)
 {
   ifnot (0 == is_defined (funm))
-    return -1;
+    ifnot (qualifier_exists ("redefine"))
+      return -1;
 
   variable arg_types = Integer_Type[length (argtypes)];
 
@@ -387,4 +390,90 @@ private define init (self)
   s;
 }
 
+
 public variable Tcc = struct {init = &init};
+
+define add_required_functions ()
+{
+  if (1 == is_defined ("realpath"))
+    return 0;
+
+  variable tcc = Tcc.init ();
+
+  if (NULL == tcc)
+    return -1;
+
+  variable retval = tcc.sladd_intrinsic_function (
+    "realpath", 1, "realpath_intrin", Void_Type, [String_Type], `
+
+/* realpath(3) implementation
+ *
+ * Originally written by Agathoklis D.E. Chatzimanikas
+ */
+
+#include <errno.h>
+#include <limits.h>
+#include <stdlib.h>
+#include <slang.h>
+
+void realpath_intrin (char *path)
+{
+  long path_max;
+  char *p;
+
+#ifdef PATH_MAX
+  path_max = PATH_MAX;
+#else
+  path_max = pathconf (path, _PC_PATH_MAX);
+  if (path_max <= 0)
+    path_max = 4096;
+#endif
+
+  if (NULL == (p = (char *)SLmalloc (path_max+1)))
+    return;
+
+  if (NULL != realpath (path, p))
+    {
+    (void) SLang_push_malloced_string (p);
+    return;
+    }
+
+   SLerrno_set_errno (errno);
+   SLfree (p);
+   (void) SLang_push_null ();
+}
+
+/* 
+  MAKE_INTRINSIC_S("realpath", realpath_intrin, SLANG_VOID_TYPE),
+ */
+`);
+
+ tcc.delete ();
+
+ ifnot (retval)
+   __realpath = __get_reference ("realpath");
+
+ retval;
+}
+
+define test_required_functions ()
+{
+  ifnot (1 == is_defined ("realpath"))
+    {
+    () = fprintf (stderr, "realpath() intrinsic function has not been initialized\n");
+    return -1;
+    }
+
+  variable orig_path = sprintf ("%s/../../clib/../slang-modules/tcc/%s",
+      path_dirname (__FILE__), path_basename (__FILE__));
+  variable sanitized_path = (@__realpath) (orig_path);
+
+  if (NULL == sanitized_path)
+    {
+    () = fprintf (stderr, "failed to canonicalize original path using realpath\n");
+    return -1;
+    }
+
+  0;
+}
+

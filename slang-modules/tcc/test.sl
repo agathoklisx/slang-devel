@@ -1,8 +1,20 @@
 #!/usr/bin/env slsh
-# for this to work needs a patched slsh that includes the
-# realpath implementation from clib
+
+% for this to work needs a patched slsh that includes the
+% realpath implementation from clib
 
 () = evalfile ("./Tcc.sl");
+
+% ok i made it part of the testing phase
+
+if (-1 == add_required_functions ())
+  {
+  () = fprintf (stderr, "failed to initialize required intrinsic functions\n");
+  exit (1);
+  }
+
+if (-1 == test_required_functions ())
+  exit (1);
 
 variable t;
 
@@ -149,3 +161,5 @@ loop (1) {
 () = fprintf (stderr, "retval = %d\n", retval);
 
 t.delete ();
+
+exit ([1, 0][0 == retval]);
