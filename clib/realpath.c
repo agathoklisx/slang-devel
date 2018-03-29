@@ -3,6 +3,7 @@
  * Originally written by Agathoklis D.E. Chatzimanikas
  */
 
+#include <errno.h>
 #include <limits.h>
 #include <stdlib.h>
 
@@ -20,7 +21,11 @@ static void realpath_intrin (char *path)
 #endif
 
   if (NULL == (p = (char *)SLmalloc (path_max+1)))
+    {
+    SLerrno_set_errno (SL_Malloc_Error);
+    (void) SLang_push_null ();
     return;
+    }
 
   if (NULL != realpath (path, p))
     {
