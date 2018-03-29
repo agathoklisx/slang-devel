@@ -38,15 +38,22 @@ private define new (s)
   if (NULL == s.tcc)
     return -1;
 
-  s.add_tcc_path ("/usr/local/lib/tcc");
+  ifnot (qualifier_exists ("disable_tcc_support"))
+    s.add_tcc_path ("/usr/local/lib/tcc");
 
   variable i;
-  _for i (0, length (s.sys_include_path) - 1)
-    if (-1 == s.add_include_sys_path (s.sys_include_path[i]))
+  variable incl_path = [s.sys_include_path, qualifier ("include_path",
+      String_Type[0])];
+
+  _for i (0, length (incl_path) - 1)
+    if (-1 == s.add_include_sys_path (incl_path[i]))
       return -1;
 
-  _for i (0, length (s.sys_lib_path) - 1)
-    if (-1 == s.add_library_path (s.sys_lib_path[i]))
+  variable lib_path = [s.sys_lib_path, qualifier ("lib_path",
+      String_Type[0])];
+
+  _for i (0, length (lib_path) - 1)
+    if (-1 == s.add_library_path (lib_path[i]))
       return -1;
 
   if (-1 == s.link_against_library ("slang"))
@@ -385,13 +392,14 @@ private define init (self)
     };
 
   ifnot (qualifier_exists ("no_init"))
-    if (-1 == s.new ())
+    if (-1 == s.new (;;__qualifiers))
       return NULL;
   s;
 }
 
-
 public variable Tcc = struct {init = &init};
+
+% this doesn't really belongs here
 
 define add_required_functions ()
 {
@@ -429,8 +437,12 @@ void realpath_intrin (char *path)
     path_max = 4096;
 #endif
 
-  if (NULL == (p = (char *)SLmalloc (path_max+1)))
+  if (NULL == (p = (char *) SLmalloc (path_max + 1)))
+    {
+    SLerrno_set_errno (SL_Malloc_Error);
+    (void) SLang_push_null ();
     return;
+    }
 
   if (NULL != realpath (path, p))
     {
@@ -442,10 +454,6 @@ void realpath_intrin (char *path)
    SLfree (p);
    (void) SLang_push_null ();
 }
-
-/* 
-  MAKE_INTRINSIC_S("realpath", realpath_intrin, SLANG_VOID_TYPE),
- */
 `);
 
  tcc.delete ();
