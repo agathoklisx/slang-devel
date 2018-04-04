@@ -15,7 +15,7 @@
  *  - does not read initialization files
  *  - initializes tcc
  *  - initializes the minimun that can get from slang
- *  - and creates an environment
+ *  - initializes a SysV environment
  *
  * Compiled with cc (GCC) 6 version and later
  *  (it uses the following feature[s] from GNU cc:
@@ -53,6 +53,10 @@
  *   (patches at: aga dot chatzimanikas at gmail)    *
  *   (discussion To: slang-devel@jedsoft.org)        */
 
+#ifndef _GNU_SOURCE
+# define _GNU_SOURCE 1
+#endif
+
 #include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
@@ -60,6 +64,7 @@
 #include <signal.h>
 #include <errno.h>
 #include <limits.h>
+#include <libgen.h>
 
 #include <libtcc.h>
 #include <slang.h>
@@ -84,6 +89,7 @@ extern const char *__LG__;
 # define PATHSEP ":"
 #endif
 
+   /* */
 
    /* helper functions */
 
@@ -725,7 +731,7 @@ static void exit_intrin (void)
   c_exit (status);
 }
 
-    /*  sysv ||&& POSIX */
+    /*  sysv */
 
 static void __realpath__ (char *path)
 {
@@ -771,10 +777,81 @@ static void __basename__ (char *name)
     (void) SLang_push_null ();
 }
 
+/*    a little bit modified glibc dirname(3)  */
+  /* dirname - return directory part of PATH.
+   * Copyright (C) 1996, 2000, 2001, 2002 Free Software Foundation, Inc.
+   * This file is part of the GNU C Library.
+   * Contributed by Ulrich Drepper <drepper@cygnus.com>, 1996.
+   */
+static void __dirname__ (char *name)
+{
+  static const char dot[] = ".";
+
+  char *last_slash;
+  char *path = strdup (name);
+
+  /* Find last '/'. */
+
+  last_slash = strrchr (path, '/');
+
+  if (last_slash != NULL && last_slash != path && last_slash[1] == '\0')
+    {
+    /* Determine whether all remaining characters are slashes. */
+    char *runp;
+
+    for (runp = last_slash; runp != path; --runp)
+      if (runp[-1] != '/')
+        break;
+
+    /* The '/' is the last character, we have to look further. */
+    if (runp != path)
+      last_slash = memrchr (path, '/', runp - path);
+    }
+
+  if (last_slash != NULL)
+    {
+    /* Determine whether all remaining characters are slashes. */
+    char *runp;
+
+    for (runp = last_slash; runp != path; --runp)
+      if (runp[-1] != '/')
+        break;
+
+    /* Terminate the path. */
+    if (runp == path)
+      {
+      /* The last slash is the first character in the string. We have to
+       * return "/". As a special case we have to return "//" if there
+       * are exactly two slashes at the beginning of the string. See
+       * XBD 4.10 Path Name Resolution for more information. */
+
+      if (last_slash == path + 1)
+        ++last_slash;
+      else
+        last_slash = path + 1;
+      }
+    else
+      last_slash = runp;
+
+    last_slash[0] = '\0';
+    }
+  else
+    /* This assignment is ill-designed but the XPG specs require to
+     * return a string containing "." in any case no directory part is
+     * found and so a static and constant string is required. */
+    path = (char *) dot;
+
+  if (-1 == SLang_push_string (path))
+    (void) SLang_push_null ();
+
+  free (path);
+}
+
 static SLang_Intrin_Fun_Type __SYSV_FUNCS__ [] =
 {
   MAKE_INTRINSIC_S("realpath", __realpath__, SLANG_VOID_TYPE),
   MAKE_INTRINSIC_S("basename", __basename__, SLANG_VOID_TYPE),
+  MAKE_INTRINSIC_S("dirname",  __dirname__,  SLANG_VOID_TYPE),
 
   SLANG_END_INTRIN_FUN_TABLE
 };
