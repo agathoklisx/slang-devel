@@ -18,7 +18,7 @@
  *  - and creates an environment
  *
  * Compiled with cc (GCC) 6 version and later
- *  (it uses the following feature from GNU cc:
+ *  (it uses the following feature[s] from GNU cc:
  *
  *  - compound statements enclosed in parentheses as expressions
  *  )
@@ -48,8 +48,8 @@
  *    (and licensed for free) as freedom
  */
 
-/*        (though who enter here)                    * 
- * (have no expectations for formal C) this is CICI  *
+/*        (thou who enter here)                      * 
+ * (have no expectations for formal C) this is Ci Ci *
  *   (patches at: aga dot chatzimanikas at gmail)    *
  *   (discussion To: slang-devel@jedsoft.org)        */
 
@@ -59,9 +59,31 @@
 #include <string.h>
 #include <signal.h>
 #include <errno.h>
+#include <limits.h>
 
 #include <libtcc.h>
 #include <slang.h>
+
+   /* private */
+
+static char *__L__[256];
+
+   /* abstraction */
+
+extern const char *__LG__;
+
+   /* portability */
+/* adopted from tcc.h */
+#ifdef _WIN32
+# define IS_DIRSEP(c) (c == '/' || c == '\\')
+# define IS_ABSPATH(p) (IS_DIRSEP(p[0]) || (p[0] && p[1] == ':' && IS_DIRSEP(p[2])))
+# define PATHSEP ";"
+#else
+# define IS_DIRSEP(c) (c == '/')
+# define IS_ABSPATH(p) IS_DIRSEP(p[0])
+# define PATHSEP ":"
+#endif
+
 
    /* helper functions */
 
@@ -346,7 +368,7 @@ static void __tcc_get_symbol (TCC_Type *tcc, char *sym)
 }
 */
 
-/* slang interface */
+     /* slang interface */
 
 /* a bit modified upstream's _pSLstrings_to_array() */
 static SLang_Array_Type *__pSLstrings_to_array (char **strs, int n)
@@ -557,11 +579,6 @@ static SLang_Intrin_Fun_Type TCC_Intrinsics [] =
   SLANG_END_INTRIN_FUN_TABLE
 };
 
-#undef P
-#undef I
-#undef V
-#undef S
-
 static int register_tcc_type (void)
 {
   SLang_Class_Type *cl;
@@ -649,11 +666,10 @@ static int loadfile (SLFUTURE_CONST char *path, char *file, char *ns)
     /* exit interface */
 
 typedef struct _AtExit_Type
-{
-   SLang_Name_Type *nt;
-   struct _AtExit_Type *next;
-}
-AtExit_Type;
+  {
+  SLang_Name_Type *nt;
+  struct _AtExit_Type *next;
+  } AtExit_Type;
 
 static AtExit_Type *AtExit_Hooks;
 
@@ -709,6 +725,85 @@ static void exit_intrin (void)
   c_exit (status);
 }
 
+    /*  sysv ||&& POSIX */
+
+static void __realpath__ (char *path)
+{
+  long path_max;
+  char *p;
+
+#ifdef PATH_MAX
+  path_max = PATH_MAX;
+#else
+  path_max = pathconf (path, _PC_PATH_MAX);
+  if (path_max <= 0)
+    path_max = 4096;
+#endif
+
+  if (NULL == (p = (char *) SLmalloc (path_max + 1)))
+    {
+    SLerrno_set_errno (SL_Malloc_Error);
+    (void) SLang_push_null ();
+    return;
+    }
+
+  if (NULL != realpath (path, p))
+    {
+    (void) SLang_push_malloced_string (p);
+    return;
+    }
+
+   SLerrno_set_errno (errno);
+   SLfree (p);
+   (void) SLang_push_null ();
+}
+
+     /* adopted from libtcc.c  */
+/* extract the basename of a file */
+static void __basename__ (char *name)
+{
+  char *p = strchr (name, 0);
+
+  while (p > name && !IS_DIRSEP (p[-1]))
+    --p;
+
+  if (-1 == SLang_push_string (p))
+    (void) SLang_push_null ();
+}
+
+static SLang_Intrin_Fun_Type __SYSV_FUNCS__ [] =
+{
+  MAKE_INTRINSIC_S("realpath", __realpath__, SLANG_VOID_TYPE),
+  MAKE_INTRINSIC_S("basename", __basename__, SLANG_VOID_TYPE),
+
+  SLANG_END_INTRIN_FUN_TABLE
+};
+
+static int __init_sysv__ ()
+{
+  SLang_NameSpace_Type *ns;
+
+  if (NULL == (ns = SLns_create_namespace ("sysv")))
+    return -1;
+
+  if (-1 == SLns_add_intrin_fun_table (ns, __SYSV_FUNCS__, NULL))
+    return -1;
+
+  return 0;
+}
+
+    /* stdio */
+
+static int __init_stdio__ ()
+{
+  return SLang_init_stdio ();
+}
+
+#undef P
+#undef I
+#undef V
+#undef S
+
       /* simple main */
 
 int main (int argc, char **argv)
@@ -756,6 +851,19 @@ int main (int argc, char **argv)
   if (-1 == __init_tcc__ ())
     {
     fprintf (stderr, "Failed to initialize the tcc compiler\n");
+    exit (1);
+    }
+
+  if (-1 == __init_sysv__ ())
+    {
+    fprintf (stderr, "Failed to initialize sysv environment\n");
+    exit (1);
+    }
+
+
+  if (-1 == __init_stdio__ ())
+    {
+    fprintf (stderr, "Failed to initialize Standard IO\n");
     exit (1);
     }
 
