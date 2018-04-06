@@ -221,7 +221,7 @@ static void __tcc_set_options (void)
 
     case SLANG_ARRAY_TYPE:
       if (-1 == SLang_pop_array_of_type (&at, SLANG_STRING_TYPE))
-	       goto end;
+	       goto theend;
 
 	     num_opts = at->num_elements;
 	     opts = (char **) at->data;
@@ -229,14 +229,14 @@ static void __tcc_set_options (void)
     }
 
   if (NULL == (mmt = SLang_pop_mmt (TCC_CLASS_ID)))
-    goto end;
+    goto theend;
 
   tcc =  (TCC_Type *) SLang_object_from_mmt (mmt);
 
   if (NULL == at)
     {
     tcc_set_options (tcc->handler, opt);
-    goto end;
+    goto theend;
     }
 
   int i;
@@ -247,7 +247,7 @@ static void __tcc_set_options (void)
       tcc_set_options (tcc->handler, s);
     }
 
-end:
+theend:
   if (NULL != mmt)
     SLang_free_mmt (mmt);
 
@@ -336,13 +336,13 @@ static int __tcc_run (void)
     argv = NULL;
 
   if (NULL == (mmt = SLang_pop_mmt (TCC_CLASS_ID)))
-    goto end;
+    goto theend;
 
   tcc = (TCC_Type *) SLang_object_from_mmt (mmt);
 
   retval = tcc_run (tcc->handler, argc, argv);
 
-end:
+theend:
   if (NULL != mmt)
     SLang_free_mmt (mmt);
 
@@ -508,16 +508,16 @@ static int __sladd_intrinsic_function (
     }
 
   if (0 != tcc_relocate (tcc->handler, TCC_RELOCATE_AUTO))
-    goto end;
+    goto theend;
 
   if (NULL == (symb = tcc_get_symbol (tcc->handler, sym)))
-    goto end;
+    goto theend;
 
   retval = SLadd_intrinsic_function (name, (FVOID_STAR) symb, *rettype, *nargs,
     arg_types[0], arg_types[1], arg_types[2], arg_types[3], arg_types[4],
     arg_types[5], arg_types[6]);
 
-end:
+theend:
   if (NULL != at)
     SLang_free_array (at);
 
@@ -856,6 +856,16 @@ static SLang_Intrin_Fun_Type __SYSV_FUNCS__ [] =
   SLANG_END_INTRIN_FUN_TABLE
 };
 
+static int __init_proc__ ()
+{
+  return SLang_init_posix_process ();
+}
+
+static int __init_signal__ ()
+{
+  return SLang_init_signal ();
+}
+
 static int __init_sysv__ ()
 {
   SLang_NameSpace_Type *ns;
@@ -866,14 +876,93 @@ static int __init_sysv__ ()
   if (-1 == SLns_add_intrin_fun_table (ns, __SYSV_FUNCS__, NULL))
     return -1;
 
+  if (-1 == __init_proc__ ())
+    return -1;
+
+  return __init_signal__ ();
+}
+
+    /* language */
+
+  /* UTF8 */
+static void __init_utf8__ ()
+{
+  /* PREREQUISITE */
+  (void) SLutf8_enable (-1);
+  return;
+
+  /* THIS SHOULD EXIT ON FAILURE */
+
+  exit (1);
+}
+
+  /* error/exceptions */
+static int __init_err__ ()
+{
+  /* already initialized */
   return 0;
 }
 
-    /* stdio */
+  /* arrays */
+static int __init_arrays__ ()
+{
+  /* basic functions are already initialized */
+      /* add those extra */
+  return SLang_init_array ();
+}
 
-static int __init_stdio__ ()
+  /* associative arrays */
+static int __init_assoc_arrays__ ()
+{
+  /* probably initialized, but make sure */
+  return SLang_init_slassoc ();
+}
+
+    /* standard IO interface */
+
+   /* stream functions */
+static int __init_stdio_stream__ ()
 {
   return SLang_init_stdio ();
+}
+
+  /* file descriptors functions */
+
+static int __init_stdio_fd__ ()
+{
+  return SLang_init_posix_io ();
+}
+
+  /* math */
+
+static int __init_math__ ()
+{
+  return SLang_init_slmath ();
+}
+
+static int __slang_init_path__ ()
+{
+  return SLang_init_ospath ();
+}
+
+static SLang_Intrin_Fun_Type __LANG_FUNCS__ [] =
+{
+  MAKE_INTRINSIC_0("lang_init_math", __init_math__, SLANG_INT_TYPE),
+
+     /* slang specific */
+  MAKE_INTRINSIC_0("slang_init_path", __slang_init_path__, SLANG_VOID_TYPE),
+
+  SLANG_END_INTRIN_FUN_TABLE
+};
+
+static int __init_lang__ ()
+{
+  SLang_NameSpace_Type *ns;
+
+  if (NULL == (ns = SLns_create_namespace ("__L__")))
+    return -1;
+
+  return SLns_add_intrin_fun_table (ns, __LANG_FUNCS__, NULL);
 }
 
 #undef P
@@ -894,7 +983,7 @@ int main (int argc, char **argv)
     exit (1);
     }
 
-  (void) SLutf8_enable (-1);
+  __init_utf8__ ();
 
   if (-1 == SLang_init_slang ())
     {
@@ -937,10 +1026,39 @@ int main (int argc, char **argv)
     exit (1);
     }
 
-
-  if (-1 == __init_stdio__ ())
+  if (-1 == __init_stdio_stream__ ())
     {
-    fprintf (stderr, "Failed to initialize Standard IO\n");
+    fprintf (stderr, "Failed to initialize Standard IO stream functions\n");
+    exit (1);
+    }
+
+  if (-1 == __init_stdio_fd__ ())
+    {
+    fprintf (stderr, "Failed to initialize Standard IO low level functions\n");
+    exit (1);
+    }
+
+  if (-1 == __init_err__ ())
+    {
+    fprintf (stderr, "Failed to initialize error interface\n");
+    exit (1);
+    }
+
+  if (-1 == __init_arrays__ ())
+    {
+    fprintf (stderr, "Failed to initialize array interface\n");
+    exit (1);
+    }
+
+  if (-1 == __init_assoc_arrays__ ())
+    {
+    fprintf (stderr, "Failed to initialize associative arrays\n");
+    exit (1);
+    }
+
+  if (-1 == __init_lang__ ())
+    {
+    fprintf (stderr, "Failed to initialize dynamical language\n");
     exit (1);
     }
 
