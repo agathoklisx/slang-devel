@@ -535,7 +535,7 @@ static void destroy_tcc_type (SLtype type, VOID_STAR f)
   free_tcc_type (tcc);
 }
 
-static SLang_IConstant_Type TCC_CONSTS [] =
+static SLang_IConstant_Type __TCC_CONSTS__ [] =
 {
   MAKE_ICONSTANT("TCC_OUTPUT_MEMORY", TCC_OUTPUT_MEMORY),
   MAKE_ICONSTANT("TCC_OUTPUT_EXE", TCC_OUTPUT_EXE),
@@ -559,7 +559,7 @@ static SLang_IConstant_Type TCC_CONSTS [] =
 #define V SLANG_VOID_TYPE
 #define S SLANG_STRING_TYPE
 
-static SLang_Intrin_Fun_Type TCC_Intrinsics [] =
+static SLang_Intrin_Fun_Type __TCC_FUNCS__ [] =
 {
   MAKE_INTRINSIC_0("tcc_new", __tcc_new, V),
   MAKE_INTRINSIC_1("tcc_delete", __tcc_delete, V, P),
@@ -604,7 +604,7 @@ static int register_tcc_type (void)
 
   TCC_CLASS_ID = SLclass_get_class_id (cl);
 
-  if (-1 == SLclass_patch_intrin_fun_table1 (TCC_Intrinsics, DUMMY_TCC_TYPE,
+  if (-1 == SLclass_patch_intrin_fun_table1 (__TCC_FUNCS__, DUMMY_TCC_TYPE,
        TCC_CLASS_ID))
     return -1;
 
@@ -615,16 +615,16 @@ static int __init_tcc__ (void)
 {
   SLang_NameSpace_Type *ns;
 
-  if (NULL == (ns = SLns_create_namespace ("Tcc")))
+  if (NULL == (ns = SLns_create_namespace ("Jit")))
     return -1;
 
   if (-1 == register_tcc_type ())
     return -1;
 
-  if (-1 == SLns_add_intrin_fun_table (ns, TCC_Intrinsics, NULL))
+  if (-1 == SLns_add_intrin_fun_table (ns, __TCC_FUNCS__, NULL))
     return -1;
 
-  if (-1 == SLns_add_iconstant_table (ns, TCC_CONSTS, NULL))
+  if (-1 == SLns_add_iconstant_table (ns, __TCC_CONSTS__, NULL))
     return -1;
 
   return 0;
@@ -679,7 +679,7 @@ typedef struct _AtExit_Type
 
 static AtExit_Type *AtExit_Hooks;
 
-static void at_exit (SLang_Ref_Type *ref)
+static void __at_exit__ (SLang_Ref_Type *ref)
 {
   SLang_Name_Type *nt;
   AtExit_Type *a;
@@ -719,7 +719,7 @@ static void c_exit (int status)
   exit (status);
 }
 
-static void exit_intrin (void)
+static void __exit__ (void)
 {
   int status;
 
@@ -730,6 +730,13 @@ static void exit_intrin (void)
 
   c_exit (status);
 }
+
+static SLang_Intrin_Fun_Type __EXIT_FUNCS__ [] =
+{
+  MAKE_INTRINSIC_0("exit", __exit__, VOID_TYPE),
+  MAKE_INTRINSIC_1("atexit", __at_exit__, VOID_TYPE, SLANG_REF_TYPE),
+  SLANG_END_INTRIN_FUN_TABLE
+};
 
     /*  sysv */
 
@@ -876,6 +883,9 @@ static int __init_sysv__ ()
   if (-1 == SLns_add_intrin_fun_table (ns, __SYSV_FUNCS__, NULL))
     return -1;
 
+  if (-1 == SLang_init_posix_dir ())
+    return -1;
+
   if (-1 == __init_proc__ ())
     return -1;
 
@@ -1001,6 +1011,12 @@ int main (int argc, char **argv)
   if (-1 == SLang_init_import ()) /* dynamic linking */
     {
     fprintf (stderr, "failed to initialize dynamic linking facility\n");
+    exit (1);
+    }
+
+  if (-1 == SLadd_intrin_fun_table (__EXIT_FUNCS__, NULL))
+    {
+    fprintf (stderr, "failed to initialize exit interface\n");
     exit (1);
     }
 
